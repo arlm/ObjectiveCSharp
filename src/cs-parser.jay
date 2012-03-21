@@ -1,21 +1,14 @@
 %{
 //
-// cs-parser.jay: The Parser for the C# compiler
+// cs-parser.jay: The Parser for the Objective-C# compiler
 //
-// Authors: Miguel de Icaza (miguel@gnome.org)
-//          Ravi Pratap     (ravi@ximian.com)
-//          Marek Safar	    (marek.safar@gmail.com)
+// Authors: Alexandre Rocha Lima e Marcondes <alexandre.marcondes@gmail.com>
 //
 // Dual Licensed under the terms of the GNU GPL and the MIT X11 license
 //
-// (C) 2001 Ximian, Inc (http://www.ximian.com)
-// (C) 2004-2011 Novell, Inc
-// Copyright 2011 Xamarin Inc.
 //
 // TODO:
-//   (1) Figure out why error productions dont work.  `type-declaration' is a
-//       great spot to put an `error' because you can reproduce it with this input:
-//	 "public X { }"
+//   ...
 //
 
 using System.Text;
@@ -23,10 +16,10 @@ using System.IO;
 using System;
 using System.Collections.Generic;
 
-namespace Mono.CSharp
+namespace ObjectiveCSharp
 {
 	/// <summary>
-	///    The C# Parser
+	///    The Objective-C# Parser
 	/// </summary>
 	public class CSharpParser
 	{
