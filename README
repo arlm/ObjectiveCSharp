@@ -25,13 +25,11 @@ Testing the Compiler
 	in `mcs/tests' pass, and all the tests in 'mcs/errors' have the
 	expected result, type:
 
-	  cd mcs		# The top-level 'mcs' directory
-	  make compiler-tests
+	  ...
 
 	If you want to test the installed compiler, you can run:
 
-	  cd mcs		# The top-level 'mcs' directory
-	  make test-installed-compiler
+	  ...
 
 Full Bootstrap
 ==============
@@ -39,10 +37,7 @@ Full Bootstrap
 	To finally ensure the state of the compiler, it is ideal to do
 	a full bootstrap, to do this, do:
 
-		cd mcs
-		make clean;
-		make
-		make install
+		...
 
 	That installs the compiler and assemblies compiled by the new compiler.
 
