@@ -1,0 +1,1086 @@
+%{
+//
+// cs-parser.jay: The Parser for the Objective-C# compiler
+//
+// Authors: Alexandre Rocha Lima e Marcondes <alexandre.marcondes@gmail.com>
+//
+// Dual Licensed under the terms of the GNU GPL and the MIT X11 license
+//
+//
+// TODO:
+//   ...
+//
+
+using System.Text;
+using System.IO;
+using System;
+using System.Collections.Generic;
+
+namespace ObjectiveCSharp
+{
+	/// <summary>
+	///    The Objective-C# Parser
+	/// </summary>
+	public class ObjectCSharpParser
+	{
+		
+%}
+
+%token EOF
+%token NONE   /* This token is never returned by our lexer */
+%token ERROR		// This is used not by the parser, but by the tokenizer.
+			// do not remove.
+
+/*
+ *These are the Objetive-C# keywords
+ */
+%token INTERFACE END PROTOCOL CLASS DEFS
+%token PRIVATE PUBLIC PROTECTED 
+%token IN OUT INOUT BYCOPY BYREF ONEWAY
+%token ID
+%token IDENTIFIER ELLIPSIS
+%token IDENTIFIER CONSTANT STRING_LITERAL SIZEOF
+%token PTR_OP INC_OP DEC_OP LEFT_OP RIGHT_OP LE_OP GE_OP EQ_OP NE_OP
+%token AND_OP OR_OP MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN ADD_ASSIGN
+%token SUB_ASSIGN LEFT_ASSIGN RIGHT_ASSIGN AND_ASSIGN
+%token XOR_ASSIGN OR_ASSIGN CLASSNAME
+
+%token TYPEDEF EXTERN STATIC AUTO REGISTER
+%token CHAR SHORT INT LONG SIGNED UNSIGNED FLOAT DOUBLE CONST VOLATILE VOID
+%token STRUCT UNION ENUM ELLIPSIS
+
+%token CASE DEFAULT IF ELSE SWITCH WHILE DO FOR GOTO CONTINUE BREAK RETURN
+
+%start translation_unit
+%%
+
+translation_unit
+    : external_declaration
+    | translation_unit external_declaration
+    ;
+
+primary_expression
+    : identifier
+    | CONSTANT
+    | STRING_LITERAL
+    | '(' expression ')'
+    ;
+
+postfix_expression
+    : primary_expression
+    | postfix_expression '[' expression ']'
+    | postfix_expression '(' ')'
+    | postfix_expression '(' argument_expression_list ')'
+    | postfix_expression '.' IDENTIFIER
+    | postfix_expression PTR_OP IDENTIFIER
+    | postfix_expression INC_OP
+    | postfix_expression DEC_OP
+    ;
+
+argument_expression_list
+    : assignment_expression
+    | argument_expression_list ',' assignment_expression
+    ;
+
+unary_expression
+    : postfix_expression
+    | INC_OP unary_expression
+    | DEC_OP unary_expression
+    | unary_operator cast_expression
+    | SIZEOF unary_expression
+    | SIZEOF '(' type_name ')'
+    ;
+
+unary_operator
+    : '&'
+    | '*'
+    | '+'
+    | '-'
+    | '~'
+    | '!'
+    ;
+
+cast_expression
+    : unary_expression
+    | '(' type_name ')' cast_expression
+    ;
+
+multiplicative_expression
+    : cast_expression
+    | multiplicative_expression '*' cast_expression
+    | multiplicative_expression '/' cast_expression
+    | multiplicative_expression '%' cast_expression
+    ;
+
+additive_expression
+    : multiplicative_expression
+    | additive_expression '+' multiplicative_expression
+    | additive_expression '-' multiplicative_expression
+    ;
+
+shift_expression
+    : additive_expression
+    | shift_expression LEFT_OP additive_expression
+    | shift_expression RIGHT_OP additive_expression
+    ;
+
+relational_expression
+    : shift_expression
+    | relational_expression '<' shift_expression
+    | relational_expression '>' shift_expression
+    | relational_expression LE_OP shift_expression
+    | relational_expression GE_OP shift_expression
+    ;
+
+equality_expression
+    : relational_expression
+    | equality_expression EQ_OP relational_expression
+    | equality_expression NE_OP relational_expression
+    ;
+
+and_expression
+    : equality_expression
+    | and_expression '&' equality_expression
+    ;
+
+exclusive_or_expression
+    : and_expression
+    | exclusive_or_expression '^' and_expression
+    ;
+
+inclusive_or_expression
+    : exclusive_or_expression
+    | inclusive_or_expression '|' exclusive_or_expression
+    ;
+
+logical_and_expression
+    : inclusive_or_expression
+    | logical_and_expression AND_OP inclusive_or_expression
+    ;
+
+logical_or_expression
+    : logical_and_expression
+    | logical_or_expression OR_OP logical_and_expression
+    ;
+
+conditional_expression
+    : logical_or_expression
+    | logical_or_expression '?' expression ':' conditional_expression
+    ;
+
+assignment_expression
+    : conditional_expression
+    | unary_expression assignment_operator assignment_expression
+    ;
+
+assignment_operator
+    : '='
+    | MUL_ASSIGN
+    | DIV_ASSIGN
+    | MOD_ASSIGN
+    | ADD_ASSIGN
+    | SUB_ASSIGN
+    | LEFT_ASSIGN
+    | RIGHT_ASSIGN
+    | AND_ASSIGN
+    | XOR_ASSIGN
+    | OR_ASSIGN
+    ;
+
+expression
+    : assignment_expression
+    | expression ',' assignment_expression
+    ;
+
+constant_expression
+    : conditional_expression
+    ;
+
+external_declaration:
+	class_interface						
+	| category_interface				
+	| declaration						
+	| protocol_declaration				
+	| protocol_declaration_list			
+	| class_declaration_list	
+    | function_definition		
+	;
+
+class_interface:
+	INTERFACE identifier superclass_name protocol_reference_list 
+	instance_variables 
+	interface_declaration_list 
+	END   
+	;
+
+category_interface:
+	INTERFACE identifier '(' category_name ')' protocol_reference_list 
+	interface_declaration_list 
+	END
+	| INTERFACE identifier '(' category_name ')' protocol_reference_list END
+	;
+
+protocol_declaration:
+	PROTOCOL protocol_name protocol_reference_list 
+	interface_declaration_list 
+	END			
+	;
+
+protocol_declaration_list:
+	PROTOCOL '<' identifier_list '>'		
+	;
+
+class_declaration_list:
+	CLASS identifier_list				// used to be class_list
+	;
+
+identifier_list
+    : identifier
+    | identifier_list ',' identifier			
+    ;
+	
+identifier:
+	IDENTIFIER							
+	;
+	
+protocol_reference_list:
+	'<' identifier_list '>'					// used to be protocol_list
+	| /* NO PROTOCOLS */					
+	;
+
+// commented out as I try to use identifier lists and identifiers instead 
+// (ignoring the fact that the identifiers might not exist) - this is likely wrong
+
+/*protocol_list:
+	protocol_name							
+	| protocol_list ',' protocol_name		
+	;
+
+class_list:
+	class_name  
+	| class_list ',' class_name
+	;
+
+class_name
+	: identifier		
+	;
+*/
+superclass_name
+	: ':' identifier			
+	|							
+	;
+
+category_name: identifier		
+	;
+	
+protocol_name: identifier;
+
+ instance_variables
+	: /* NO INSTANCE VARIABLES */		
+	| '{' instance_variable_declaration '}'   
+	;
+
+ instance_variable_declaration
+	: visibility_specification struct_declaration_list instance_variables
+	| instance_variable_declaration visibility_specification
+	| instance_variable_declaration struct_declaration_list instance_variables
+	;
+
+visibility_specification
+	: PRIVATE
+	| PROTECTED
+	| PUBLIC
+	; 
+
+interface_declaration_list
+	: declaration							
+	| method_declaration					
+	| interface_declaration_list declaration
+	| interface_declaration_list method_declaration
+	|											
+	;
+
+method_declaration:
+	classMethod_declaration
+	| instanceMethod_declaration
+	;
+
+classMethod_declaration:
+	'+' method_type method_selector			
+	;
+
+instanceMethod_declaration:
+	'-' method_type method_selector			 
+	;
+
+method_selector
+	: unary_selector
+	| keyword_selector
+	| keyword_selector ',' ELLIPSIS			 
+	| keyword_selector ',' parameter_type_list 
+	;
+
+unary_selector
+	: selector;
+
+keyword_selector
+	: keyword_declarator
+	| keyword_selector keyword_declarator    
+	;
+
+keyword_declarator:
+	':' method_type identifier			 
+	| selector ':' method_type identifier   
+	;
+
+selector:identifier;
+
+method_type
+	: '(' type_name ')'					 
+	|								 
+	;
+	
+declaration_list
+    : declaration
+    | declaration_list declaration
+    ;
+
+declaration
+	: declaration_specifiers ';'			
+    | declaration_specifiers init_declarator_list ';' 
+    ;
+
+init_declarator_list
+    : init_declarator
+    | init_declarator_list ',' init_declarator
+    ;
+
+init_declarator
+    : declarator
+    | declarator '=' initializer
+    ;
+
+storage_class_specifier
+    : TYPEDEF
+    | EXTERN
+    | STATIC
+    | AUTO
+    | REGISTER
+    ;
+
+type_specifier
+    : VOID								 
+    | CHAR									 
+    | SHORT							 
+    | INT								 
+    | LONG				 
+    | FLOAT						 
+    | DOUBLE						 
+    | SIGNED							 
+    | UNSIGNED								 
+    | struct_or_union_specifier				 
+    | enum_specifier						 
+	| ID protocol_reference_list			 
+	| identifier protocol_reference_list
+    ;
+
+
+struct_or_union_specifier
+    : struct_or_union identifier '{' struct_declaration_list '}'
+    | struct_or_union '{' struct_declaration_list '}'
+    | struct_or_union identifier
+	| struct_or_union identifier '{' DEFS '(' identifier ')' '}'
+    ;
+
+struct_or_union
+    : STRUCT
+    | UNION
+    ;
+
+struct_declaration_list
+    : struct_declaration
+    | struct_declaration_list struct_declaration 
+    ;
+
+struct_declaration
+    : specifier_qualifier_list struct_declarator_list ';' 
+    ;
+
+specifier_qualifier_list
+    : type_specifier specifier_qualifier_list 
+    | type_specifier
+    | type_qualifier specifier_qualifier_list    
+    | type_qualifier						 
+    ;
+
+struct_declarator_list
+    : struct_declarator							
+    | struct_declarator_list ',' struct_declarator 
+    ;
+
+struct_declarator
+	: declarator						 
+    | ':' constant_expression // weird!
+    | declarator ':' constant_expression
+    ;
+
+enum_specifier
+    : ENUM '{' enumerator_list '}'
+    | ENUM identifier '{' enumerator_list '}'
+    | ENUM identifier
+    ;
+
+enumerator_list
+    : enumerator
+    | enumerator_list ',' enumerator
+    ;
+
+enumerator
+    : identifier
+    | identifier '=' constant_expression
+    ;
+
+
+type_qualifier
+    : CONST
+    | VOLATILE
+	| protocol_qualifier
+    ;
+ 
+protocol_qualifier
+	: IN
+	| OUT
+	| INOUT
+	| BYCOPY
+	| BYREF
+	| ONEWAY
+	;
+
+declarator
+    : pointer direct_declarator
+    | direct_declarator
+    ;
+
+direct_declarator
+    : identifier							 
+    | '(' declarator ')'
+    | direct_declarator '[' constant_expression ']'
+    | direct_declarator '[' ']'
+    | direct_declarator '(' parameter_type_list ')'
+    | direct_declarator '(' identifier_list ')'
+    | direct_declarator '(' ')'
+    ;
+
+pointer
+    : '*' type_qualifier_list pointer 
+	| '*' pointer
+	| '*' type_qualifier_list
+	| '*'
+    ;
+	
+type_qualifier_list
+    : type_qualifier
+    | type_qualifier_list type_qualifier
+    ;
+
+parameter_type_list
+    : parameter_list
+    | parameter_list ',' ELLIPSIS			 
+    ;
+
+parameter_list
+    : parameter_declaration
+    | parameter_list ',' parameter_declaration   
+    ;
+
+declaration_specifiers
+    : storage_class_specifier				
+    | type_specifier						
+    | type_qualifier						
+    | declaration_specifiers storage_class_specifier 
+    | declaration_specifiers type_specifier
+    | declaration_specifiers type_qualifier
+    ;
+
+parameter_declaration
+    : declaration_specifiers declarator			
+    | declaration_specifiers abstract_declarator
+    | declaration_specifiers
+    ;
+
+type_name
+    : specifier_qualifier_list
+    | specifier_qualifier_list abstract_declarator
+    ;
+
+abstract_declarator
+    : pointer
+    | direct_abstract_declarator
+    | pointer direct_abstract_declarator
+    ;
+
+direct_abstract_declarator
+    : '(' abstract_declarator ')'
+    | '[' ']'
+    | '[' constant_expression ']'
+    | direct_abstract_declarator '[' ']'
+    | direct_abstract_declarator '[' constant_expression ']'
+    | '(' ')'
+    | '(' parameter_type_list ')'
+    | direct_abstract_declarator '(' ')'
+    | direct_abstract_declarator '(' parameter_type_list ')'
+    ;
+
+initializer
+    : assignment_expression
+    | '{' initializer_list '}'
+    ;
+
+initializer_list
+    : initializer
+    | initializer_list ',' initializer
+    ;
+	
+statement
+	: labeled_statement
+	| compound_statement
+    | expression_statement
+    | selection_statement
+    | iteration_statement
+    | jump_statement
+    ;
+
+labeled_statement
+    : identifier ':' statement
+    | CASE constant_expression ':' statement
+    | DEFAULT ':' statement
+    ;
+
+compound_statement
+    : '{' '}'
+    | '{' statement_list '}'
+    | '{' declaration_list '}'
+    | '{' declaration_list statement_list '}'
+    ;
+
+statement_list
+    : statement
+    | statement_list statement
+    ;
+
+expression_statement
+    : ';'
+    | expression ';'
+    ;
+
+selection_statement
+    : IF '(' expression ')' statement
+    | IF '(' expression ')' statement ELSE statement
+    | SWITCH '(' expression ')' statement
+    ;
+
+iteration_statement
+    : WHILE '(' expression ')' statement
+    | DO statement WHILE '(' expression ')' ';'
+    | FOR '(' expression_statement expression_statement ')' statement
+    | FOR '(' expression_statement expression_statement expression ')' statement
+    ;
+
+jump_statement
+    : GOTO IDENTIFIER ';'
+    | CONTINUE ';'
+    | BREAK ';'
+    | RETURN ';'
+    | RETURN expression ';'
+    ;
+
+function_definition
+    : declaration_specifiers declarator declaration_list compound_statement
+    | declaration_specifiers declarator compound_statement
+    | declarator declaration_list compound_statement
+    | declarator compound_statement
+    ;
+%%
+
+Tokenizer lexer;
+
+public Tokenizer Lexer {
+	get {
+		return lexer;
+	}
+}		   
+
+static ObjectCSharpParser ()
+{
+	oob_stack = new Stack<object> ();
+}
+
+public ObjectCSharpParser (SeekableStreamReader reader, CompilationSourceFile file)
+	: this (reader, file, file.Compiler.Report)
+{
+}
+
+public ObjectCSharpParser (SeekableStreamReader reader, CompilationSourceFile file, Report report)
+{
+	this.file = file;
+	current_container = current_namespace = file;
+	
+	this.module = file.Module;
+	this.compiler = file.Compiler;
+	this.settings = compiler.Settings;
+	this.report = report;
+	
+	lang_version = settings.Version;
+	yacc_verbose_flag = settings.VerboseParserFlag;
+	doc_support = settings.DocumentationFile != null;
+	oob_stack.Clear ();
+	lexer = new Tokenizer (reader, file);
+
+	lbag = null;
+	
+	use_global_stacks = true;
+}
+
+public void parse ()
+{
+	eof_token = Token.EOF;
+	Tokenizer.LocatedToken.Initialize ();
+	
+	try {
+		if (yacc_verbose_flag > 1)
+			yyparse (lexer, new yydebug.yyDebugSimple ());
+		else
+			yyparse (lexer);
+			
+		Tokenizer tokenizer = lexer as Tokenizer;
+		tokenizer.cleanup ();		
+	} catch (Exception e){
+	  	if (e is yyParser.yyUnexpectedEof) {
+			Error_SyntaxError (yyToken);
+			UnexpectedEOF = true;
+			return;
+		}
+			
+		if (e is yyParser.yyException) {
+			report.Error (-25, lexer.Location, "Parsing error");
+		} else {
+			// Used by compiler-tester to test internal errors
+			if (yacc_verbose_flag > 0)
+				throw;
+		
+			report.Error (589, lexer.Location, "Internal compiler error during parsing");
+		}
+	}
+}
+
+string GetSymbolName (int token)
+{
+	switch (token){
+	case Token.LITERAL:
+		return ((Constant)lexer.Value).GetValue ().ToString ();
+	case Token.IDENTIFIER:
+		return ((Tokenizer.LocatedToken)lexer.Value).Value;
+
+	case Token.BOOL:
+		return "bool";
+	case Token.BYTE:
+		return "byte";
+	case Token.CHAR:
+		return "char";
+	case Token.VOID:
+		return "void";
+	case Token.DECIMAL:
+		return "decimal";
+	case Token.DOUBLE:
+		return "double";
+	case Token.FLOAT:
+		return "float";
+	case Token.INT:
+		return "int";
+	case Token.LONG:
+		return "long";
+	case Token.SBYTE:
+		return "sbyte";
+	case Token.SHORT:
+		return "short";
+	case Token.STRING:
+		return "string";
+	case Token.UINT:
+		return "uint";
+	case Token.ULONG:
+		return "ulong";
+	case Token.USHORT:
+		return "ushort";
+	case Token.OBJECT:
+		return "object";
+		
+	case Token.PLUS:
+		return "+";
+	case Token.UMINUS:
+	case Token.MINUS:
+		return "-";
+	case Token.BANG:
+		return "!";
+	case Token.BITWISE_AND:
+		return "&";
+	case Token.BITWISE_OR:
+		return "|";
+	case Token.STAR:
+		return "*";
+	case Token.PERCENT:
+		return "%";
+	case Token.DIV:
+		return "/";
+	case Token.CARRET:
+		return "^";
+	case Token.OP_INC:
+		return "++";
+	case Token.OP_DEC:
+		return "--";
+	case Token.OP_SHIFT_LEFT:
+		return "<<";
+	case Token.OP_SHIFT_RIGHT:
+		return ">>";
+	case Token.OP_LT:
+		return "<";
+	case Token.OP_GT:
+		return ">";
+	case Token.OP_LE:
+		return "<=";
+	case Token.OP_GE:
+		return ">=";
+	case Token.OP_EQ:
+		return "==";
+	case Token.OP_NE:
+		return "!=";
+	case Token.OP_AND:
+		return "&&";
+	case Token.OP_OR:
+		return "||";
+	case Token.OP_PTR:
+		return "->";
+	case Token.OP_COALESCING:	
+		return "??";
+	case Token.OP_MULT_ASSIGN:
+		return "*=";
+	case Token.OP_DIV_ASSIGN:
+		return "/=";
+	case Token.OP_MOD_ASSIGN:
+		return "%=";
+	case Token.OP_ADD_ASSIGN:
+		return "+=";
+	case Token.OP_SUB_ASSIGN:
+		return "-=";
+	case Token.OP_SHIFT_LEFT_ASSIGN:
+		return "<<=";
+	case Token.OP_SHIFT_RIGHT_ASSIGN:
+		return ">>=";
+	case Token.OP_AND_ASSIGN:
+		return "&=";
+	case Token.OP_XOR_ASSIGN:
+		return "^=";
+	case Token.OP_OR_ASSIGN:
+		return "|=";
+	}
+
+	return GetTokenName (token);
+}
+
+static string GetTokenName (int token)
+{
+	switch (token){
+	case Token.ABSTRACT:
+		return "abstract";
+	case Token.AS:
+		return "as";
+	case Token.ADD:
+		return "add";
+	case Token.ASYNC:
+		return "async";
+	case Token.BASE:
+		return "base";
+	case Token.BREAK:
+		return "break";
+	case Token.CASE:
+		return "case";
+	case Token.CATCH:
+		return "catch";
+	case Token.CHECKED:
+		return "checked";
+	case Token.CLASS:
+		return "class";
+	case Token.CONST:
+		return "const";
+	case Token.CONTINUE:
+		return "continue";
+	case Token.DEFAULT:
+		return "default";
+	case Token.DELEGATE:
+		return "delegate";
+	case Token.DO:
+		return "do";
+	case Token.ELSE:
+		return "else";
+	case Token.ENUM:
+		return "enum";
+	case Token.EVENT:
+		return "event";
+	case Token.EXPLICIT:
+		return "explicit";
+	case Token.EXTERN:
+	case Token.EXTERN_ALIAS:
+		return "extern";
+	case Token.FALSE:
+		return "false";
+	case Token.FINALLY:
+		return "finally";
+	case Token.FIXED:
+		return "fixed";
+	case Token.FOR:
+		return "for";
+	case Token.FOREACH:
+		return "foreach";
+	case Token.GOTO:
+		return "goto";
+	case Token.IF:
+		return "if";
+	case Token.IMPLICIT:
+		return "implicit";
+	case Token.IN:
+		return "in";
+	case Token.INTERFACE:
+		return "interface";
+	case Token.INTERNAL:
+		return "internal";
+	case Token.IS:
+		return "is";
+	case Token.LOCK:
+		return "lock";
+	case Token.NAMESPACE:
+		return "namespace";
+	case Token.NEW:
+		return "new";
+	case Token.NULL:
+		return "null";
+	case Token.OPERATOR:
+		return "operator";
+	case Token.OUT:
+		return "out";
+	case Token.OVERRIDE:
+		return "override";
+	case Token.PARAMS:
+		return "params";
+	case Token.PRIVATE:
+		return "private";
+	case Token.PROTECTED:
+		return "protected";
+	case Token.PUBLIC:
+		return "public";
+	case Token.READONLY:
+		return "readonly";
+	case Token.REF:
+		return "ref";
+	case Token.RETURN:
+		return "return";
+	case Token.REMOVE:
+		return "remove";
+	case Token.SEALED:
+		return "sealed";
+	case Token.SIZEOF:
+		return "sizeof";
+	case Token.STACKALLOC:
+		return "stackalloc";
+	case Token.STATIC:
+		return "static";
+	case Token.STRUCT:
+		return "struct";
+	case Token.SWITCH:
+		return "switch";
+	case Token.THIS:
+		return "this";
+	case Token.THROW:
+		return "throw";
+	case Token.TRUE:
+		return "true";
+	case Token.TRY:
+		return "try";
+	case Token.TYPEOF:
+		return "typeof";
+	case Token.UNCHECKED:
+		return "unchecked";
+	case Token.UNSAFE:
+		return "unsafe";
+	case Token.USING:
+		return "using";
+	case Token.VIRTUAL:
+		return "virtual";
+	case Token.VOLATILE:
+		return "volatile";
+	case Token.WHERE:
+		return "where";
+	case Token.WHILE:
+		return "while";
+	case Token.ARGLIST:
+		return "__arglist";
+	case Token.REFVALUE:
+		return "__refvalue";
+	case Token.REFTYPE:
+		return "__reftype";
+	case Token.MAKEREF:
+		return "__makeref";
+	case Token.PARTIAL:
+		return "partial";
+	case Token.ARROW:
+		return "=>";
+	case Token.FROM:
+	case Token.FROM_FIRST:
+		return "from";
+	case Token.JOIN:
+		return "join";
+	case Token.ON:
+		return "on";
+	case Token.EQUALS:
+		return "equals";
+	case Token.SELECT:
+		return "select";
+	case Token.GROUP:
+		return "group";
+	case Token.BY:
+		return "by";
+	case Token.LET:
+		return "let";
+	case Token.ORDERBY:
+		return "orderby";
+	case Token.ASCENDING:
+		return "ascending";
+	case Token.DESCENDING:
+		return "descending";
+	case Token.INTO:
+		return "into";
+	case Token.GET:
+		return "get";
+	case Token.SET:
+		return "set";
+	case Token.OPEN_BRACE:
+		return "{";
+	case Token.CLOSE_BRACE:
+		return "}";
+	case Token.OPEN_BRACKET:
+	case Token.OPEN_BRACKET_EXPR:
+		return "[";
+	case Token.CLOSE_BRACKET:
+		return "]";
+	case Token.OPEN_PARENS_CAST:
+	case Token.OPEN_PARENS_LAMBDA:
+	case Token.OPEN_PARENS:
+		return "(";
+	case Token.CLOSE_PARENS:
+		return ")";
+	case Token.DOT:
+		return ".";
+	case Token.COMMA:
+		return ",";
+	case Token.DEFAULT_COLON:
+		return "default:";
+	case Token.COLON:
+		return ":";
+	case Token.SEMICOLON:
+		return ";";
+	case Token.TILDE:
+		return "~";
+		
+	case Token.PLUS:
+	case Token.UMINUS:
+	case Token.MINUS:
+	case Token.BANG:
+	case Token.OP_LT:
+	case Token.OP_GT:
+	case Token.BITWISE_AND:
+	case Token.BITWISE_OR:
+	case Token.STAR:
+	case Token.PERCENT:
+	case Token.DIV:
+	case Token.CARRET:
+	case Token.OP_INC:
+	case Token.OP_DEC:
+	case Token.OP_SHIFT_LEFT:
+	case Token.OP_SHIFT_RIGHT:
+	case Token.OP_LE:
+	case Token.OP_GE:
+	case Token.OP_EQ:
+	case Token.OP_NE:
+	case Token.OP_AND:
+	case Token.OP_OR:
+	case Token.OP_PTR:
+	case Token.OP_COALESCING:	
+	case Token.OP_MULT_ASSIGN:
+	case Token.OP_DIV_ASSIGN:
+	case Token.OP_MOD_ASSIGN:
+	case Token.OP_ADD_ASSIGN:
+	case Token.OP_SUB_ASSIGN:
+	case Token.OP_SHIFT_LEFT_ASSIGN:
+	case Token.OP_SHIFT_RIGHT_ASSIGN:
+	case Token.OP_AND_ASSIGN:
+	case Token.OP_XOR_ASSIGN:
+	case Token.OP_OR_ASSIGN:
+		return "<operator>";
+
+	case Token.BOOL:
+	case Token.BYTE:
+	case Token.CHAR:
+	case Token.VOID:
+	case Token.DECIMAL:
+	case Token.DOUBLE:
+	case Token.FLOAT:
+	case Token.INT:
+	case Token.LONG:
+	case Token.SBYTE:
+	case Token.SHORT:
+	case Token.STRING:
+	case Token.UINT:
+	case Token.ULONG:
+	case Token.USHORT:
+	case Token.OBJECT:
+		return "type";
+	
+	case Token.ASSIGN:
+		return "=";
+	case Token.OP_GENERICS_LT:
+	case Token.GENERIC_DIMENSION:
+		return "<";
+	case Token.OP_GENERICS_GT:
+		return ">";
+	case Token.INTERR:
+	case Token.INTERR_NULLABLE:
+		return "?";
+	case Token.DOUBLE_COLON:
+		return "::";
+	case Token.LITERAL:
+		return "value";
+	case Token.IDENTIFIER:
+	case Token.AWAIT:
+		return "identifier";
+
+	case Token.EOF:
+		return "end-of-file";
+
+		// All of these are internal.
+	case Token.NONE:
+	case Token.ERROR:
+	case Token.FIRST_KEYWORD:
+	case Token.EVAL_COMPILATION_UNIT_PARSER:
+	case Token.EVAL_USING_DECLARATIONS_UNIT_PARSER:
+	case Token.EVAL_STATEMENT_PARSER:
+	case Token.LAST_KEYWORD:
+	case Token.GENERATE_COMPLETION:
+	case Token.COMPLETE_COMPLETION:
+		return "<internal>";
+
+		// A bit more robust.
+	default:
+		return yyNames [token];
+        }
+}
+
+/* end end end */
+}

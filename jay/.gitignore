@@ -2,3 +2,7 @@
 *.suo
 *.ilk
 *.vcxproj.*
+*.ncb
+*.user
+target
+temp
