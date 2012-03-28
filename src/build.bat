@@ -1,0 +1,1 @@
+..\jay\target\windows\Release\jay.exe -c object-cs-parser.jay < ..\jay\skeleton.cs > parser.cs
