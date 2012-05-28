@@ -4,5 +4,6 @@
 *.vcxproj.*
 *.ncb
 *.user
+*.o
 target
 temp
