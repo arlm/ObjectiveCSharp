@@ -8,4 +8,7 @@ mcs.pdb
 ?mcs.suo
 mcs.suo
 ?mcs.vshost*
-obj
+/obj
+/bin
+
+*.suo
