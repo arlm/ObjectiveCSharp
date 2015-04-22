@@ -1,1 +1,3 @@
-..\jay\target\macosx\jay -c object-cs-parser.jay < ..\jay\skeleton.cs > parser.cs
+#/bin/sh
+
+../jay/target/macosx/jay -c object-cs-parser.jay < ../jay/skeleton.cs > parser.cs
